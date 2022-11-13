@@ -2,7 +2,6 @@
 
 import sys
 import traceback
-from time import sleep
 from random import sample
 from ui_design import Ui_MainWindow
 from PyQt5.QtCore import QSize, QTimer
@@ -58,6 +57,7 @@ class MineSweeperField:
         self.game_over = 0
         self.is_opened = False
         self.flags_coords = []
+        self.mines_coords = []
         self.field = [[' ' for k in range(self.size_x)]
                       for i in range(self.size_y)]
 
@@ -66,6 +66,7 @@ class MineSweeperField:
         if safety is not None:
             positions.remove(safety)
         for i, k in sample(positions, self.mines_count):
+            self.mines_coords.append((i, k))
             self.field[i][k] = '.'
         for i, a in enumerate(self.field, 0):
             for k, b in enumerate(a, 0):
@@ -88,11 +89,14 @@ class MineSweeperField:
         if self.field[y][x][1]:
             return 0
         else:
+            all_cells = []
             if self.field[y][x][0] == '.':
                 self.game_over = 2
+                all_cells = self.mines_coords
                 self.change_lose_field(coords)
             elif self.field[y][x][0].isdigit():
                 self.field[y][x] = (self.field[y][x][0], True)
+                all_cells = [(y, x)]
                 self.is_game_over()
             else:
                 for a in get_near_opened_cells(self.field, y, x, []):
@@ -100,9 +104,12 @@ class MineSweeperField:
                     if (i, k) in self.flags_coords:
                         continue
                     self.field[i][k] = (self.field[i][k][0], True)
+                    all_cells.append((i, k))
                 self.is_game_over()
             if self.game_over == 1:
+                all_cells += self.mines_coords
                 self.change_win_field()
+            return all_cells
 
     def change_lose_field(self, coords):
         for i, a in enumerate(self.field, 0):
@@ -162,6 +169,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def load_start_interface(self):
         self.setMouseTracking(True)
+        self.all_cells = []
         self.label_time = QLabel('Время: 00:00')
         self.label_time.setStyleSheet('QLabel {font-size: 15px}')
         self.statusbar.addWidget(self.label_time)
@@ -204,19 +212,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         btn.change_btn()
 
     def btn_released_changer(self, btn):
-        if btn.objectName() != 'switch_click_mode':
-            self.current_time = 0
-            self.lcd_current_time.display(self.current_time)
-            self.label_time.setText('Время: 00:00')
-            self.timer.stop()
         if btn.__class__.__name__ == 'ConditionButton':
             btn.change_condition()
             if btn.objectName() != 'switch_click_mode':
                 a = FIELD_MODES[str(self.switch_field_mode.get_condition())]
                 b = GAME_MODES[str(self.switch_game_mode.get_condition())]
                 self.mines_field.__init__(*a, b)
-                self.current_count_mines = a[1]
-                self.lcd_count_mines.display(self.current_count_mines)
                 self.create_field()
         elif btn.__class__.__name__ == 'SmileButton':
             self.btn_smile.make_happy()
@@ -226,6 +227,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.create_field()
         btn.get_toggle_press()
         btn.change_btn()
+        if btn.objectName() != 'switch_click_mode':
+            a = FIELD_MODES[str(self.switch_field_mode.get_condition())]
+            self.current_count_mines = a[1]
+            self.lcd_count_mines.display(self.current_count_mines)
+            self.current_time = 0
+            self.lcd_current_time.display(self.current_time)
+            self.label_time.setText('Время: 00:00')
+            self.timer.stop()
 
     def create_field(self):
         while self.gridLayout_field.count() > 0:
@@ -235,7 +244,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 cell = CellButton(self, (i, k))
                 self.gridLayout_field.addWidget(cell, i, k)
 
-    def update_field(self):
+    def update_field(self, data=None):
         if self.mines_field.get_game_value() != 0:
             self.timer.stop()
         if self.mines_field.get_game_value() == 1:
@@ -246,6 +255,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.btn_smile.change_btn()
         for i, a in enumerate(self.mines_field, 0):
             for k, b in enumerate(a, 0):
+                if data is not None:
+                    if (i, k) not in data:
+                        continue
                 if len(b) == 1:
                     temp = 'cell'
                     if (i, k) in self.mines_field.get_flags_data():
@@ -291,7 +303,8 @@ class CellButton(QPushButton):
         if event.button() == b:
             self.window.btn_smile.make_happy()
             self.window.btn_smile.change_btn()
-            self.window.update_field()
+            self.window.update_field(self.window.all_cells)
+            self.window.all_cells = []
 
     def mousePressEvent(self, event):
         while True:
@@ -312,7 +325,9 @@ class CellButton(QPushButton):
                     self.window.current_count_mines -= 1
                 if self.window.lcd_count_mines.intValue() >= -99:
                     self.window.lcd_count_mines.display(self.window.current_count_mines)
-                self.window.update_field()
+                self.window.all_cells = [(self.coords)]
+                self.window.update_field(self.window.all_cells)
+                self.window.all_cells = []
             elif event.button() == b:
                 if self.coords not in self.window.mines_field.get_flags_data():
                     self.window.btn_smile.make_surprised()
@@ -326,7 +341,7 @@ class CellButton(QPushButton):
                         self.setIcon(QIcon(MAIN_PATHS['cell_pressed']))
                         if not self.window.mines_field.is_opened:
                             self.window.timer.start(1000)
-                        self.window.mines_field.open_cell(self.coords)
+                        self.window.all_cells = self.window.mines_field.open_cell(self.coords)
             break
 
 
