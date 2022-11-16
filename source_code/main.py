@@ -245,6 +245,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 self.gridLayout_field.addWidget(cell, i, k)
 
     def update_field(self, data=None):
+        if data is not None:
+            data += self.mines_field.flags_coords
         if self.mines_field.get_game_value() != 0:
             self.timer.stop()
         if self.mines_field.get_game_value() == 1:
