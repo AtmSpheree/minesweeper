@@ -128,4 +128,6 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
+# Virtualenv
 /source_code/venv
+/source_code/venv32
