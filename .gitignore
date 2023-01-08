@@ -131,3 +131,6 @@ dmypy.json
 # Virtualenv
 /source_code/venv
 /source_code/venv32
+
+# Idea
+/source_code/.idea
